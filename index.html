@@ -18,24 +18,26 @@
 	</head>
 	<body>
 		<canvas id="canvas"></canvas>
-		<div id="ak18fps"></div>
+		<div id="confps"></div>
 	</body>
 	<script type="module">
-		import {Paozhang,CanvasRender} from './js/index.js'
+		import {ConfettoEjector,CanvasRender} from './js/index.js'
 		const canvasRender = new CanvasRender();
 		canvasRender.init({
 			el: "#canvas",
 			displayFps:true,
+			onFinished:()=>{
+			}
 		}).run();
 		window.onmousedown = function(e) {
-			const pao=new Paozhang(canvasRender,{
+			const pao=new ConfettoEjector(canvasRender,{
 				limitAngle:[225,315],
 				count:100,
 			});
 			const boom=pao.create({
 				x:e.clientX-window.innerWidth/2,
 				y:e.clientY-window.innerHeight/2,
-				clampforce:[20, 40],
+				clampforce:[20, 100],
 			});
 			pao.fire(boom);
 		}

@@ -3,21 +3,26 @@ class ScreenUtil {
 	static height;
 }
 
-
-
+class AnimationState{
+	static running = Symbol.for("running");
+	static stop = Symbol.for("stop");
+};
 /*渲染管理器*/
 class CanvasRender {
 	/*纸屑回收站*/
 	revoveryShape = [];
 	/*纸屑集合*/
-	shapeList = [];
+	_shapeList = [];
 	/*el对象*/
 	canvas;
 	/*画笔*/
 	paint;
 	/*动画控制器*/
 	animationController;
+	/*是否uniapp*/
 	isUni = false;
+	/*动画是否还在更新中*/
+	_animationState=AnimationState.stop;
 	/*显示fps*/
 	displayFps;
 	/*Fps工具*/
@@ -57,45 +62,66 @@ class CanvasRender {
 			return this.value;
 		}
 	};
+	/*动画执行完毕回调*/
+	onFinished;
 	init({
 		el,
 		vm,
 		width,
 		height,
 		displayFps,
+		paint,
+		onFinished,
 	}) {
 		if (el == undefined) {
 			return;
 		}
-		this.displayFps=displayFps||false;
-		ScreenUtil.width = window.innerWidth;
-		ScreenUtil.height = window.innerHeight;
+		this.displayFps = displayFps || false;
+		this.onFinished=onFinished||function(){};
 		try {
 			this.isUni = uni != undefined;
 		} catch (e) {
 			//TODO handle the exception
 		}
-		this.canvas = document.querySelector(el);
-		if (this.isUni) {
-			this.paint = uni.createCanvasContext(el, vm);
-		} else if (this.canvas.getContext) {
-			this.paint = this.canvas.getContext("2d");
-			this.canvas.width = width || ScreenUtil.width;
-			this.canvas.height = height || ScreenUtil.height;
+		if(document){
+			this.canvas = document.querySelector(el);
+		}else if(wx){
+			this.canvas=wx.createSelectorQuery().select(el);
 		}
-		/*设置设备屏幕大小*/
+		if (paint) {
+			this.paint = paint;
+		} else this.setPaint(el,vm,width,height);
+		
 
 		return this;
 	}
+	setPaint(el,vm,width,height){
+		if (this.isUni) {
+			this.paint = uni.createCanvasContext(el, vm);
+			let getWindowInfo = uni.getWindowInfo();
+			ScreenUtil.width = getWindowInfo.windowWidth;
+			ScreenUtil.height = getWindowInfo.windowHeight;
+		} else if (this.canvas.getContext) {
+			this.paint = this.canvas.getContext("2d");
+			ScreenUtil.width = window.innerWidth;
+			ScreenUtil.height = window.innerHeight;
+			this.canvas.width = width || ScreenUtil.width;
+			this.canvas.height = height || ScreenUtil.height;
+		}
+	}
 	run() {
-		requestAnimationFrame(() => {
-			this._update();
+		const animationEngine=requestAnimationFrame||function(fn){
+			setTimeout(fn,1000/60)
+		};
+		animationEngine(() => {
+			if(this._shapeList.length!=0)
+				this._update(animationEngine);
 		});
 	}
 	dispose() {
 		if (this.canvas) {
 			cancelAnimationFrame(this.animationController);
-			this.shapeList = this.revoveryShape = [];
+			this._shapeList = this.revoveryShape = [];
 			document.body.removeChild(this.canvas);
 			this.canvas = null;
 		}
@@ -103,14 +129,16 @@ class CanvasRender {
 	/**
 	 * 刷新Canvas,每帧检测回收对象
 	 */
-	_update() {
+	_update(animationEngine) {
 		if (this.isUni) {
 			this.paint.draw();
 		} else {
 			this.paint.clearRect(0, 0, ScreenUtil.width, ScreenUtil.height);
 		}
-
-		this.shapeList.forEach(
+		/*检测对象数量及时停止*/
+		if(this._shapeList.length==0)return this._animationFinished();
+		/*更新最新动画状态*/
+		this._shapeList.forEach(
 			(shape) => {
 				shape.alive = (shape.position.x < ScreenUtil.width / 2 && shape.position.x > -ScreenUtil.width /
 						2) && shape
@@ -121,25 +149,35 @@ class CanvasRender {
 				shape.update(this.paint);
 			}
 		);
-
+		/*回收对象*/
 		this._recovery();
-		if(this.displayFps){
+		/*计算显示FPS*/
+		if (this.displayFps) {
 			const fps = this._fpsUtil.tick();
-			document.querySelector("#ak18fps").innerHTML = `Shape:${this.shapeList.length}/FPS:${fps}`;
+			if(document){
+				document.querySelector("#confps").innerHTML = `Shape:${this._shapeList.length}/FPS:${fps}`;
+			}
 		}
-		this.animationController = requestAnimationFrame(() => {
-			this._update();
+		/*判断动画是否还继续*/
+		if(this._animationState==AnimationState.stop)return;
+		/*下一次更新调用*/
+		this.animationController = animationEngine(() => {
+			this._update(animationEngine);
 		});
+	}
+	_animationFinished(){
+		this._animationState=AnimationState.stop;
+		this.onFinished();
 	}
 	/**
 	 * @description 回收彩纸对象
 	 */
 	_recovery() {
-		for (let i = 0; i < this.shapeList.length; i++) {
-			const shape = this.shapeList[i];
+		for (let i = 0; i < this._shapeList.length; i++) {
+			const shape = this._shapeList[i];
 			if (!shape.alive) {
 				this.revoveryShape.push(shape);
-				this.shapeList.splice(i, 1);
+				this._shapeList.splice(i, 1);
 			}
 		}
 	}
@@ -148,7 +186,6 @@ class CanvasRender {
 	 * @param {number} count //拿多少个
 	 */
 	async recover(count) {
-		Promise.resolve("123")
 		const len = this.revoveryShape.length;
 		if (count > len) {
 			const re = [];
@@ -166,7 +203,12 @@ class CanvasRender {
 		return Promise.resolve([])
 	}
 	add(shapes) {
-		this.shapeList.push(...shapes);
+		/*fire的时候继续开启动画状态*/
+		if(this._animationState==AnimationState.stop){
+			this._animationState=AnimationState.running;
+			this.run();
+		}
+		this._shapeList.push(...shapes);
 	}
 }
 
@@ -267,7 +309,7 @@ class Plane extends Material {
 		paint.beginPath();
 		this.color[3] = this.opacity;
 		paint.fillStyle = Styles.rgba(this.color);
-		this.points.forEach(point=>{
+		this.points.forEach(point => {
 			const dp = Matrix3.transformTo2D(point, this.A, position);
 			paint.lineTo(dp.x, dp.y);
 		})
@@ -281,12 +323,12 @@ class Matrix3 {
 		//const scale=3//A.z/(A.z+point.z);
 		// const x = scale*point.x;
 		// const y =  scale*point.y;
-		const pz=1/(A.z - point.z);
+		const pz = 1 / (A.z - point.z);
 		const x = ((point.x - A.x) * A.z) * pz;
 		const y = ((point.y - A.y) * A.z) * pz;
 		return {
-			x: x + ScreenUtil.width *.5 + position.x,
-			y: y + ScreenUtil.height *.5 + position.y,
+			x: x + ScreenUtil.width * .5 + position.x,
+			y: y + ScreenUtil.height * .5 + position.y,
 		};
 	}
 	static rotateX(point, angle) {
@@ -330,7 +372,7 @@ class Matrix3 {
 }
 
 /*喷发类*/
-class Paozhang {
+class ConfettoEjector {
 	gravity = 0.08;
 	/*彩纸片边角数量集合*/
 	shapeTypes = [3, 4, 15];
@@ -372,7 +414,7 @@ class Paozhang {
 		const recover = await this.canvasRender.recover(this.count);
 		const len = 0 //recover.length;
 		//喷射速度
-		const spraySpeed = clampforce||[20, 40];
+		const spraySpeed = clampforce || [20, 40];
 		for (let i = 0; i < len; i++) {
 			const shape = recover[i];
 			const ranAngle = this.getRandomClamp(this.limitAngle) * this.PI;
@@ -403,7 +445,7 @@ class Paozhang {
 	}
 	async fire(_shapes) {
 		const shapes = await _shapes;
-		this.shapesCache=[];
+		this.shapesCache = [];
 		this.canvasRender.add(shapes);
 	}
 }
@@ -487,6 +529,7 @@ class Polygon extends Shape {
 		this.vector = vector || new Vector(0, 0);
 		this.material = material || new Plane(this.points);
 		this.z = 0;
+		//this.turn=Math.random()>.5?1:-1;
 	}
 	createPoints(count) {
 		const PI = Math.PI * 2;
@@ -525,7 +568,7 @@ class Polygon extends Shape {
 	update(paint) {
 		this.move();
 		this.material.update(paint, this.position);
-		const speed = 20;
+		const speed = 20//*this.turn;
 		Matrix3All.rotateX(this, Math.random() * speed - this.vector.y);
 		Matrix3All.rotateY(this, Math.random() * speed - this.vector.x)
 		Matrix3All.rotateZ(this, Math.random() * speed - this.vector.y)
@@ -559,6 +602,6 @@ class Styles {
 
 
 export {
-	Paozhang,
+	ConfettoEjector,
 	CanvasRender
 };

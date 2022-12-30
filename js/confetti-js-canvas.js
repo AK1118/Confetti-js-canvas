@@ -120,10 +120,8 @@ class CanvasRender {
 	}
 	dispose() {
 		if (this.canvas) {
-			cancelAnimationFrame(this.animationController);
+			this._animationState=AnimationState.stop;
 			this._shapeList = this.revoveryShape = [];
-			document.body.removeChild(this.canvas);
-			this.canvas = null;
 		}
 	}
 	/**

@@ -27,6 +27,7 @@
 			el: "#canvas",
 			displayFps:true,
 			onFinished:()=>{
+				canvasRender.dispose();
 			}
 		}).run();
 		window.onmousedown = function(e) {

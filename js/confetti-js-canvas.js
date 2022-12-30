@@ -2,7 +2,6 @@ class ScreenUtil {
 	static width;
 	static height;
 }
-
 class AnimationState{
 	static running = Symbol.for("running");
 	static stop = Symbol.for("stop");
@@ -25,6 +24,7 @@ class CanvasRender {
 	_animationState=AnimationState.stop;
 	/*显示fps*/
 	displayFps;
+	hasBeenDispose=false;
 	/*Fps工具*/
 	_fpsUtil = {
 		sampleSize: 60,
@@ -81,7 +81,6 @@ class CanvasRender {
 		try {
 			this.isUni = uni != undefined;
 		} catch (e) {
-			//TODO handle the exception
 		}
 		if(document){
 			this.canvas = document.querySelector(el);
@@ -91,8 +90,6 @@ class CanvasRender {
 		if (paint) {
 			this.paint = paint;
 		} else this.setPaint(el,vm,width,height);
-		
-
 		return this;
 	}
 	setPaint(el,vm,width,height){
@@ -110,6 +107,9 @@ class CanvasRender {
 		}
 	}
 	run() {
+		if(this.hasBeenDispose){
+			return console.error("This CanvasRender has been destroyed!");
+		}
 		const animationEngine=requestAnimationFrame||function(fn){
 			setTimeout(fn,1000/60)
 		};
@@ -119,15 +119,15 @@ class CanvasRender {
 		});
 	}
 	dispose() {
-		if (this.canvas) {
-			this._animationState=AnimationState.stop;
-			this._shapeList = this.revoveryShape = [];
-		}
+		this.hasBeenDispose=true;
+		this._animationState=AnimationState.stop;
+		this.paint=this.canvas=this._shapeList=this.revoveryShape=this._fpsUtil=null;
 	}
 	/**
 	 * 刷新Canvas,每帧检测回收对象
 	 */
 	_update(animationEngine) {
+		// console.log(this.id)
 		if (this.isUni) {
 			this.paint.draw();
 		} else {
@@ -184,6 +184,9 @@ class CanvasRender {
 	 * @param {number} count //拿多少个
 	 */
 	async recover(count) {
+		if(this.hasBeenDispose){
+			return console.error("This CanvasRender has been destroyed!");
+		}
 		const len = this.revoveryShape.length;
 		if (count > len) {
 			const re = [];
@@ -299,7 +302,10 @@ class Plane extends Material {
 		super();
 		this.points = points;
 	}
-	update(paint, position) {
+	update(paint, position,shape) {
+		if(this.opacity<=0.05){
+			return shape.alive=false;
+		}
 		this.opacity -= .004;
 		this.draw(paint, position);
 	}
@@ -447,7 +453,6 @@ class ConfettoEjector {
 		this.canvasRender.add(shapes);
 	}
 }
-
 class Point extends Vector {
 	constructor({
 		x = 0,
@@ -469,8 +474,6 @@ class Point extends Vector {
 		this.z = z;
 	}
 }
-
-
 class Matrix3All {
 	/**
 	 * @param {Shape} shape
@@ -546,16 +549,6 @@ class Polygon extends Shape {
 		})
 	}
 	move() {
-		// const new_x=this.position.x*2-this.bposition.x;
-		// const new_y=this.position.y*2-this.bposition.y;
-
-		// this.bposition.set(this.position);
-
-		// this.position.x=new_x;
-		// this.position.y=new_y;
-
-		// this.vector.x += .01 ;
-		// this.vector.y += 1;
 		if (Math.abs(this.vector.x) > .2) this.vector.x *= .9;
 		if (Math.abs(this.vector.y) > 1) this.vector.y *= .9;
 		this.vector.y += .26;
@@ -565,22 +558,15 @@ class Polygon extends Shape {
 	}
 	update(paint) {
 		this.move();
-		this.material.update(paint, this.position);
+		this.material.update(paint, this.position,this);
 		const speed = 20//*this.turn;
 		Matrix3All.rotateX(this, Math.random() * speed - this.vector.y);
 		Matrix3All.rotateY(this, Math.random() * speed - this.vector.x)
 		Matrix3All.rotateZ(this, Math.random() * speed - this.vector.y)
 	}
 }
-
-
 class Styles {
-	static Red = "red";
-	static White = "white";
-	static Black = "black";
-	static Pink = "pink";
 	static get RandomColor() {
-		//const colors=['#fd65ff','#a3fd82','#b780fd','#59d6ff','#fdba60','#fbfd71'];
 		const colors = [
 			[253, 101, 255],
 			[163, 253, 130],

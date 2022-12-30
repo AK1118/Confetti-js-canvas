@@ -70,6 +70,7 @@
   1.CanvasRender可以被多个喷发对象使用，但一个喷发对象只能设置一个CanvasRender。
   2.一个canvas标签只能被一个CanvasRender所拥有，如果您有两个canvas标签，不妨为它再多new一个CanvasRender对象。
   3.笛卡尔坐标系的原点在canvas正中间，所以pao.create的x,y如果是0，0，那么喷发也会从canvas中心喷出。
+  4.如果不再使用CanvasRender对象，请调用他new出来对象的dispose方法销毁回收站的对象。
   
 ## 🐷 附上最简单实现代码
    

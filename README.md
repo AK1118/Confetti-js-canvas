@@ -1,9 +1,10 @@
 # :zap:Confetti-js-canvas
-## canvas中奖庆祝礼花喷发特效
+## canvas中奖庆祝礼花喷发/五彩纸屑/🎉/特效
 
-### 引入对象
+### 引入对象(文末有最简单实现代码)
 首先需要从.js文件中引入喷发对象和渲染对象
-***import {ConfettoEjector,CanvasRender} from './js/index.js';***
+
+	import {ConfettoEjector,CanvasRender} from './js/index.js';
 
 ### 创建渲染对象CanvasRender
 

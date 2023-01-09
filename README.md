@@ -19,25 +19,33 @@
 		onFinished:()=>{
 		}		
 	});	
-	canvasRender.run();
-    
-当然也可以直接在init函数后面链式调用.run();
-
-	canvasRender.init({...}).run();
-
+	
 ### init函数可以接受多个参数
-
 
 	init({
 		el,	//required [String] canvas节点id
-		vm,	//uniapp的vm this对象，h5不需要加
-		width,	//canvas的宽度
-		height,	//canvas的高度
-		displayFps,	//是否显示fps，仅仅H5支持。如果设置为ture,那您最好有一个id为confps的标签供他innerHtml。
-		paint,	//自己设置canvas的2d画笔对象
-		onFinished,	//动画执行完毕回调()=>{}
+		vm,	//选填,uniapp的vm this对象，h5不需要加
+		width,	//el不为空时必填,canvas的宽度
+		height,	//el不为空时必填,canvas的高度
+		displayFps,	//选填,是否显示fps，仅仅H5支持。如果设置为ture,那您最好有一个id为confps的标签供他innerHtml。
+		custom,	//选填,自定义canvas,paint,canvas大小，参考值在下方
+		grabity, //[Number] 选填,纸屑下落速度
+		onFinished,	//选填,动画执行完毕回调()=>{}
 	});
-  
+	
+### 以下custom参数参考值，值得注意的是custom的优先级高于el,当您设置custom时el会失效。
+
+	//const canvas = document.getElementById("canvas");
+	//canvas.width = window.innerWidth;
+	//canvas.height = window.innerHeight;
+	//const g = canvas.getContext("2d");
+	custom: {
+		   width: window.innerWidth,
+		   height: window.innerHeight ,
+		   canvas: canvas,
+		   paint: g,
+		},
+ 
  ### 喷发对象ConfettoEjector
   喷发对象需要您传入两个必要的参数才能正常工作
   
@@ -58,6 +66,7 @@
 		x:0,//required [Number] 喷发圆心点X轴
 		y:0,//required [Number] 喷发圆心点Y轴
 		clampforce:[20, 100],//[Array] 喷发力度区间
+		radius: 10,//单个纸屑的半径
 	});      
 	
   值得注意的是，boom是一个Promise对象，并没有被渲染，我们还需要把这个boom给他fire出去。
@@ -71,7 +80,7 @@
   <div>1.CanvasRender可以被多个喷发对象使用，但一个喷发对象只能设置一个CanvasRender。</div>
   <div>2.一个canvas标签只能被一个CanvasRender所拥有，如果您有两个canvas标签，不妨为它再多new一个CanvasRender对象。</div>
   <div>3.笛卡尔坐标系的原点在canvas正中间，所以pao.create的x,y如果是0，0，那么喷发也会从canvas中心喷出。</div>
-  <div>4.如果不再使用CanvasRender对象，请调用他new出来对象的dispose方法销毁回收站的对象。</div>
+  <div>4.如果不再使用CanvasRender对象，请调用它实例的dispose方法销毁它。</div>
   
   
 ## 🐷 附上最简单实现代码

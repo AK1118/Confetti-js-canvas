@@ -1,3 +1,8 @@
+/**
+ * @version 1.0.1
+ * @description uniapp不支持ES13特性私有方法&字段的编译，用 _标识代替声明私有变量/方法
+ */
+
 class ScreenUtil {
 	static width;
 	static height;
@@ -9,24 +14,27 @@ class AnimationState {
 /*渲染管理器*/
 class CanvasRender {
 	/*纸屑回收站*/
-	#revoveryShape = [];
+	_revoveryShape = [];
 	/*纸屑集合*/
-	#shapeList = [];
+	_shapeList = [];
 	/*el对象*/
-	canvas;
+	_canvas;
 	/*画笔*/
-	#paint;
+	_paint;
 	/*动画控制器*/
 	animationController;
 	/*是否uniapp*/
-	#isUni = false;
+	_isUni = false;
 	/*动画是否还在更新中*/
-	#animationState = AnimationState.stop;
+	_animationState = AnimationState.stop;
 	/*显示fps*/
 	displayFps;
-	#hasBeenDispose = false;
+	/*渲染对象是否被销毁*/
+	_hasBeenDispose = false;
+	/*纸屑下落速度*/
+	gravity=.26;
 	/*Fps工具*/
-	#fpsUtil = {
+	_fpsUtil = {
 		sampleSize: 60,
 		value: 0,
 		_sample_: [],
@@ -70,69 +78,88 @@ class CanvasRender {
 		width,
 		height,
 		displayFps,
-		paint,
 		onFinished,
+		custom,
+		gravity,
 	}) {
-		if (el == undefined) {
-			return;
-		}
 		this.displayFps = displayFps || false;
 		this.onFinished = onFinished || function() {};
+		this.gravity=gravity||.26;
+		if (el == undefined&&!custom) {
+			throw Error("Canvas Id or custom brush not obtained");
+		}
 		try {
-			this.#isUni = uni != undefined;
+			this._isUni = uni != undefined;
 		} catch (e) {}
 		if (document) {
-			this.canvas = document.querySelector(el);
+			this._canvas = document.querySelector(el);
 		} else if (wx) {
-			this.canvas = wx.createSelectorQuery().select(el);
+			this._canvas = wx.createSelectorQuery().select(el);
 		}
-		if (paint) {
-			this.#paint = paint;
-		} else this.#setPaint(el, vm, width, height);
+		/*自定义优先级最高*/
+		if (custom) {
+			this._customCanvasAndPaint(custom);
+		} else this._setPaint(el, vm, width, height);
 		return this;
 	}
-	#setPaint(el, vm, width, height) {
-		if (this.#isUni) {
-			this.#paint = uni.createCanvasContext(el, vm);
+	/**
+	 * @description 自定义画笔，视口大小，canvas
+	 */
+	_customCanvasAndPaint({
+		width,
+		height,
+		canvas,
+		paint,
+	}){
+		this._paint=paint;
+		this._canvas=canvas;
+		ScreenUtil.width=width;
+		ScreenUtil.height=height;
+	}
+	_setPaint(el, vm, width, height) {
+		if (this._isUni) {
+			/*Uniapp*/
+			this._paint = uni.createCanvasContext(el, vm);
 			let getWindowInfo = uni.getWindowInfo();
 			ScreenUtil.width = getWindowInfo.windowWidth;
 			ScreenUtil.height = getWindowInfo.windowHeight;
-		} else if (this.canvas.getContext) {
-			this.#paint = this.canvas.getContext("2d");
+		} else if (this._canvas.getContext) {
+			/*H5*/
+			this._paint = this._canvas.getContext("2d");
 			ScreenUtil.width = window.innerWidth;
 			ScreenUtil.height = window.innerHeight;
-			this.canvas.width = width || ScreenUtil.width;
-			this.canvas.height = height || ScreenUtil.height;
+			this._canvas.width = width || ScreenUtil.width;
+			this._canvas.height = height || ScreenUtil.height;
 		}
 	}
 	run() {
-		if (this.#hasBeenDispose) {
+		if (this._hasBeenDispose) {
 			return console.error("This CanvasRender has been destroyed!");
 		}
 		const animationEngine = requestAnimationFrame || function(fn) {
 			return setTimeout(fn, 1000 / 60)
 		};
 		animationEngine(() => {
-			if (this.#shapeList.length != 0)
-				this.#update(animationEngine);
+			if (this._shapeList.length != 0)
+				this._update(animationEngine);
 		});
 	}
 	dispose() {
-		this.#hasBeenDispose = true;
-		this.#animationState = AnimationState.stop;
-		this.#paint = this.canvas = this.#shapeList = this.#revoveryShape = this.#fpsUtil = null;
+		this._hasBeenDispose = true;
+		this._animationState = AnimationState.stop;
+		this._paint = this._canvas = this._shapeList = this._revoveryShape = this._fpsUtil = null;
 	}
 	/**
 	 * 刷新Canvas,每帧检测回收对象
 	 */
-	#update(animationEngine) {
-		if (this.#isUni) {
-			this.#paint.draw();
+	_update(animationEngine) {
+		if (this._isUni) {
+			this._paint.draw();
 		} else {
-			this.#paint.clearRect(0, 0, ScreenUtil.width, ScreenUtil.height);
+			this._paint.clearRect(0, 0, ScreenUtil.width, ScreenUtil.height);
 		}
 		/*检测对象数量及时停止*/
-		if (this.#shapeList.length == 0) return this.#animationFinished();
+		if (this._shapeList.length == 0) return this._animationFinished();
 		
 		{	
 				  /*canvas宽度一半*/
@@ -140,7 +167,7 @@ class CanvasRender {
 				  /*canvas高度一半*/
 				  _half_h=ScreenUtil.height >>1;
 			/*更新动画*/
-			this.#shapeList.forEach(
+			this._shapeList.forEach(
 				(shape,ndx) => {
 					/*位置超出视口标记为可回收对象*/
 					shape.alive = (shape.position.x < _half_w && shape.position.x > ~_half_w) && shape
@@ -148,37 +175,37 @@ class CanvasRender {
 					if (!shape.alive) {
 						return;
 					}
-					shape.update(this.#paint);
+					shape.update(this._paint);
 				}
 			);
 		}
 		/*回收对象*/
-		this.#recovery();
+		this._recovery();
 		/*计算显示FPS*/
 		if (this.displayFps) {
-			const fps = this.#fpsUtil.tick();
+			const fps = this._fpsUtil.tick();
 			if (document) {
-				document.querySelector("#confps").innerHTML = `Shape:${this.#shapeList.length}/FPS:${fps}`;
+				document.querySelector("#confps").innerHTML = `Shape:${this._shapeList.length}/FPS:${fps}`;
 			}
 		}
 		/*判断动画是否还继续*/
-		if (this.#animationState == AnimationState.stop) return;
+		if (this._animationState == AnimationState.stop) return;
 		/*下一次更新调用*/
 		this.animationController = animationEngine(() => {
-			this.#update(animationEngine);
+			this._update(animationEngine);
 		});
 	}
-	#animationFinished() {
-		this.#animationState = AnimationState.stop;
+	_animationFinished() {
+		this._animationState = AnimationState.stop;
 		this.onFinished();
 	}
 	/**
 	 * @description 回收彩纸对象
 	 */
-	#recovery() {
-		this.#shapeList = this.#shapeList.filter((item, ndx) => {
+	_recovery() {
+		this._shapeList = this._shapeList.filter((item, ndx) => {
 			if (!item.alive) {
-				this.#revoveryShape.push(item);
+				this._revoveryShape.push(item);
 			}
 			return item.alive;
 		});
@@ -188,20 +215,20 @@ class CanvasRender {
 	 * @param {number} count //拿多少个
 	 */
 	async recover(count) {
-		if (this.#hasBeenDispose) {
+		if (this._hasBeenDispose) {
 			throw new Error('This CanvasRender has been destroyed!')
 		}
-		const len = this.#revoveryShape.length;
+		const len = this._revoveryShape.length;
 		if (count > len) {
 			const re = [];
 			for (let i = 0; i < len; i++) {
-				re.push(this.#revoveryShape.pop());
+				re.push(this._revoveryShape.pop());
 			}
 			return Promise.resolve(re);
 		} else {
 			const re = [];
 			for (let i = 0; i < count; i++) {
-				re.push(this.#revoveryShape.pop());
+				re.push(this._revoveryShape.pop());
 			}
 			return Promise.resolve(re);
 		}
@@ -209,11 +236,11 @@ class CanvasRender {
 	}
 	add(shapes) {
 		/*fire的时候继续开启动画状态*/
-		if (this.#animationState == AnimationState.stop) {
-			this.#animationState = AnimationState.running;
+		if (this._animationState == AnimationState.stop) {
+			this._animationState = AnimationState.running;
 			this.run();
 		}
-		this.#shapeList.push(...shapes);
+		this._shapeList.push(...shapes);
 	}
 }
 
@@ -333,8 +360,8 @@ class Matrix3 {
 		const x = ((point.x - A.x) * A.z) * pz;
 		const y = ((point.y - A.y) * A.z) * pz;
 		return {
-			x: x + ScreenUtil.width * .5 + position.x,
-			y: y + ScreenUtil.height * .5 + position.y,
+			x: x + (ScreenUtil.width >>1) + position.x,
+			y: y + (ScreenUtil.height >>1) + position.y,
 		};
 	}
 	static rotateX(point, angle) {
@@ -379,7 +406,6 @@ class Matrix3 {
 
 /*喷发类*/
 class ConfettoEjector {
-	gravity = 0.08;
 	/*彩纸片边角数量集合*/
 	shapeTypes = [3, 4, 15];
 	//限制喷射角度，顺时针
@@ -452,7 +478,8 @@ class ConfettoEjector {
 				width: radius||12,
 				count: count,
 				position: new Vector(x, y),
-				vector: new Vector(vx, vy)
+				vector: new Vector(vx, vy),
+				gravity:this.canvasRender.gravity,
 			});
 			shapesCache.push(shape)
 		}
@@ -537,7 +564,8 @@ class Polygon extends Shape {
 		material,
 		position,
 		count = 3,
-		vector
+		vector,
+		gravity,
 	}) {
 		super();
 		this.width = width;
@@ -549,6 +577,7 @@ class Polygon extends Shape {
 		this.bposition = this.position.copy();
 		this.vector = vector || new Vector(0, 0);
 		this.material = material || new Plane(this.points);
+		this.gravity=gravity||.26;
 		this.z = 0;
 		//this.turn=Math.random()>.5?1:-1;
 	}
@@ -572,7 +601,7 @@ class Polygon extends Shape {
 	move() {
 		if (Math.abs(this.vector.x) > .2) this.vector.x *= .9;
 		if (Math.abs(this.vector.y) > 1) this.vector.y *= .9;
-		this.vector.y += .26;
+		this.vector.y += this.gravity;
 		this.vector.x += Math.random() > .5 ? -.2 : .2;
 		this.position.add(this.vector)
 

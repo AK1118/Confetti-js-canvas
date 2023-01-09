@@ -10,8 +10,6 @@
 				position: fixed;
 				top: 0px;
 				left: 0px;
-				width: 100vw;
-				height: 100vh;
 				pointer-events: none;
 			}
 		</style>
@@ -21,27 +19,39 @@
 		<div id="confps"></div>
 	</body>
 	<script type="module">
-		import {ConfettoEjector,CanvasRender} from './js/confetti-js-canvas.js'
-		const g=document.getElementById("canvas").getContext("2d");
+		import {
+			ConfettoEjector,
+			CanvasRender
+		} from './js/confetti-js-canvas.js'
+		const canvas = document.getElementById("canvas");
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
+		const g = canvas.getContext("2d");
 		const canvasRender = new CanvasRender();
 		canvasRender.init({
 			el: "#canvas",
 			displayFps:true,
-			//paint:g,
-			onFinished:()=>{
-				//canvasRender.dispose();
-			}
+			custom: {
+				width: window.innerWidth,
+				height: window.innerHeight ,
+				canvas: canvas,
+				paint: g,
+			},
+			onFinished: () => {
+				canvasRender.dispose();
+				console.log("销毁渲染器")
+			},
 		}).run();
 		window.onmousedown = function(e) {
-			const pao=new ConfettoEjector(canvasRender,{
-				limitAngle:[225,315],
-				count:100,
+			const pao = new ConfettoEjector(canvasRender, {
+				limitAngle: [225, 315],
+				count: 100,
 			});
-			const boom=pao.create({
-				x:e.clientX-window.innerWidth/2,
-				y:e.clientY-window.innerHeight/2,
-				clampforce:[20, 100],
-				radius:10,
+			const boom = pao.create({
+				x: e.clientX - window.innerWidth / 2,
+				y: e.clientY - window.innerHeight / 2,
+				clampforce: [20, 90],
+				radius: 10,
 			});
 			pao.fire(boom);
 		}

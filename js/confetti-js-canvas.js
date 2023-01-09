@@ -2,31 +2,31 @@ class ScreenUtil {
 	static width;
 	static height;
 }
-class AnimationState{
+class AnimationState {
 	static running = Symbol.for("running");
 	static stop = Symbol.for("stop");
 };
 /*渲染管理器*/
 class CanvasRender {
 	/*纸屑回收站*/
-	revoveryShape = [];
+	#revoveryShape = [];
 	/*纸屑集合*/
-	_shapeList = [];
+	#shapeList = [];
 	/*el对象*/
 	canvas;
 	/*画笔*/
-	paint;
+	#paint;
 	/*动画控制器*/
 	animationController;
 	/*是否uniapp*/
-	isUni = false;
+	#isUni = false;
 	/*动画是否还在更新中*/
-	_animationState=AnimationState.stop;
+	#animationState = AnimationState.stop;
 	/*显示fps*/
 	displayFps;
-	hasBeenDispose=false;
+	#hasBeenDispose = false;
 	/*Fps工具*/
-	_fpsUtil = {
+	#fpsUtil = {
 		sampleSize: 60,
 		value: 0,
 		_sample_: [],
@@ -77,29 +77,28 @@ class CanvasRender {
 			return;
 		}
 		this.displayFps = displayFps || false;
-		this.onFinished=onFinished||function(){};
+		this.onFinished = onFinished || function() {};
 		try {
-			this.isUni = uni != undefined;
-		} catch (e) {
-		}
-		if(document){
+			this.#isUni = uni != undefined;
+		} catch (e) {}
+		if (document) {
 			this.canvas = document.querySelector(el);
-		}else if(wx){
-			this.canvas=wx.createSelectorQuery().select(el);
+		} else if (wx) {
+			this.canvas = wx.createSelectorQuery().select(el);
 		}
 		if (paint) {
-			this.paint = paint;
-		} else this.setPaint(el,vm,width,height);
+			this.#paint = paint;
+		} else this.#setPaint(el, vm, width, height);
 		return this;
 	}
-	setPaint(el,vm,width,height){
-		if (this.isUni) {
-			this.paint = uni.createCanvasContext(el, vm);
+	#setPaint(el, vm, width, height) {
+		if (this.#isUni) {
+			this.#paint = uni.createCanvasContext(el, vm);
 			let getWindowInfo = uni.getWindowInfo();
 			ScreenUtil.width = getWindowInfo.windowWidth;
 			ScreenUtil.height = getWindowInfo.windowHeight;
 		} else if (this.canvas.getContext) {
-			this.paint = this.canvas.getContext("2d");
+			this.#paint = this.canvas.getContext("2d");
 			ScreenUtil.width = window.innerWidth;
 			ScreenUtil.height = window.innerHeight;
 			this.canvas.width = width || ScreenUtil.width;
@@ -107,97 +106,102 @@ class CanvasRender {
 		}
 	}
 	run() {
-		if(this.hasBeenDispose){
+		if (this.#hasBeenDispose) {
 			return console.error("This CanvasRender has been destroyed!");
 		}
-		const animationEngine=requestAnimationFrame||function(fn){
-			setTimeout(fn,1000/60)
+		const animationEngine = requestAnimationFrame || function(fn) {
+			return setTimeout(fn, 1000 / 60)
 		};
 		animationEngine(() => {
-			if(this._shapeList.length!=0)
-				this._update(animationEngine);
+			if (this.#shapeList.length != 0)
+				this.#update(animationEngine);
 		});
 	}
 	dispose() {
-		this.hasBeenDispose=true;
-		this._animationState=AnimationState.stop;
-		this.paint=this.canvas=this._shapeList=this.revoveryShape=this._fpsUtil=null;
+		this.#hasBeenDispose = true;
+		this.#animationState = AnimationState.stop;
+		this.#paint = this.canvas = this.#shapeList = this.#revoveryShape = this.#fpsUtil = null;
 	}
 	/**
 	 * 刷新Canvas,每帧检测回收对象
 	 */
-	_update(animationEngine) {
-		// console.log(this.id)
-		if (this.isUni) {
-			this.paint.draw();
+	#update(animationEngine) {
+		if (this.#isUni) {
+			this.#paint.draw();
 		} else {
-			this.paint.clearRect(0, 0, ScreenUtil.width, ScreenUtil.height);
+			this.#paint.clearRect(0, 0, ScreenUtil.width, ScreenUtil.height);
 		}
 		/*检测对象数量及时停止*/
-		if(this._shapeList.length==0)return this._animationFinished();
-		/*更新最新动画状态*/
-		this._shapeList.forEach(
-			(shape) => {
-				shape.alive = (shape.position.x < ScreenUtil.width / 2 && shape.position.x > -ScreenUtil.width /
-						2) && shape
-					.position.y < ScreenUtil.height / 2;
-				if (!shape.alive) {
-					return;
+		if (this.#shapeList.length == 0) return this.#animationFinished();
+		
+		{	
+				  /*canvas宽度一半*/
+			const _half_w=ScreenUtil.width >>1,
+				  /*canvas高度一半*/
+				  _half_h=ScreenUtil.height >>1;
+			/*更新动画*/
+			this.#shapeList.forEach(
+				(shape,ndx) => {
+					/*位置超出视口标记为可回收对象*/
+					shape.alive = (shape.position.x < _half_w && shape.position.x > ~_half_w) && shape
+						.position.y < _half_h;
+					if (!shape.alive) {
+						return;
+					}
+					shape.update(this.#paint);
 				}
-				shape.update(this.paint);
-			}
-		);
+			);
+		}
 		/*回收对象*/
-		this._recovery();
+		this.#recovery();
 		/*计算显示FPS*/
 		if (this.displayFps) {
-			const fps = this._fpsUtil.tick();
-			if(document){
-				document.querySelector("#confps").innerHTML = `Shape:${this._shapeList.length}/FPS:${fps}`;
+			const fps = this.#fpsUtil.tick();
+			if (document) {
+				document.querySelector("#confps").innerHTML = `Shape:${this.#shapeList.length}/FPS:${fps}`;
 			}
 		}
 		/*判断动画是否还继续*/
-		if(this._animationState==AnimationState.stop)return;
+		if (this.#animationState == AnimationState.stop) return;
 		/*下一次更新调用*/
 		this.animationController = animationEngine(() => {
-			this._update(animationEngine);
+			this.#update(animationEngine);
 		});
 	}
-	_animationFinished(){
-		this._animationState=AnimationState.stop;
+	#animationFinished() {
+		this.#animationState = AnimationState.stop;
 		this.onFinished();
 	}
 	/**
 	 * @description 回收彩纸对象
 	 */
-	_recovery() {
-		for (let i = 0; i < this._shapeList.length; i++) {
-			const shape = this._shapeList[i];
-			if (!shape.alive) {
-				this.revoveryShape.push(shape);
-				this._shapeList.splice(i, 1);
+	#recovery() {
+		this.#shapeList = this.#shapeList.filter((item, ndx) => {
+			if (!item.alive) {
+				this.#revoveryShape.push(item);
 			}
-		}
+			return item.alive;
+		});
 	}
 	/**
 	 * @description 在回收栈里面拿重复利用对象
 	 * @param {number} count //拿多少个
 	 */
 	async recover(count) {
-		if(this.hasBeenDispose){
-			return console.error("This CanvasRender has been destroyed!");
+		if (this.#hasBeenDispose) {
+			throw new Error('This CanvasRender has been destroyed!')
 		}
-		const len = this.revoveryShape.length;
+		const len = this.#revoveryShape.length;
 		if (count > len) {
 			const re = [];
 			for (let i = 0; i < len; i++) {
-				re.push(this.revoveryShape.pop());
+				re.push(this.#revoveryShape.pop());
 			}
 			return Promise.resolve(re);
 		} else {
 			const re = [];
 			for (let i = 0; i < count; i++) {
-				re.push(this.revoveryShape.pop());
+				re.push(this.#revoveryShape.pop());
 			}
 			return Promise.resolve(re);
 		}
@@ -205,17 +209,11 @@ class CanvasRender {
 	}
 	add(shapes) {
 		/*fire的时候继续开启动画状态*/
-		if(this._animationState==AnimationState.stop){
-			this._animationState=AnimationState.running;
+		if (this.#animationState == AnimationState.stop) {
+			this.#animationState = AnimationState.running;
 			this.run();
 		}
-		this._shapeList.push(...shapes);
-	}
-}
-
-class CreateRenderCanvas {
-	static createElement() {
-
+		this.#shapeList.push(...shapes);
 	}
 }
 
@@ -271,6 +269,10 @@ class Vector {
 		this.x = v.x;
 		this.y = v.y;
 	}
+	setXY(x, y) {
+		this.x = x;
+		this.y = y;
+	}
 	static dist(v1, v2) {
 		let sub = Vector.sub(v1, v2);
 		return Vector.mag(sub);
@@ -302,9 +304,9 @@ class Plane extends Material {
 		super();
 		this.points = points;
 	}
-	update(paint, position,shape) {
-		if(this.opacity<=0.05){
-			return shape.alive=false;
+	update(paint, position, shape) {
+		if (this.opacity <= 0.05) {
+			return shape.alive = false;
 		}
 		this.opacity -= .004;
 		this.draw(paint, position);
@@ -413,21 +415,31 @@ class ConfettoEjector {
 		y,
 		/*喷发力度域值[min,max]*/
 		clampforce,
+		/*纸屑半径*/
+		radius,
 	}) {
-		const shapesCache = [];
-		const recover = await this.canvasRender.recover(this.count);
-		const len = 0 //recover.length;
 		//喷射速度
 		const spraySpeed = clampforce || [20, 40];
+		const shapesCache = [];
+		/*重新使用被回收的对象*/
+		const recover = await this.canvasRender.recover(this.count);
+		const len = recover.length;
 		for (let i = 0; i < len; i++) {
 			const shape = recover[i];
 			const ranAngle = this.getRandomClamp(this.limitAngle) * this.PI;
 			const speed = this.getRandomClamp(spraySpeed);
 			const vx = Math.cos(ranAngle) * speed;
 			const vy = Math.sin(ranAngle) * speed;
-			shape.position.x = x;
-			shape.position.y = y;
-			shape.vector = new Vector(vx, vy)
+			shape.reset({
+				position: {
+					x,
+					y
+				},
+				vector: {
+					x: vx,
+					y: vy
+				}
+			});
 		}
 		shapesCache.push(...recover);
 		for (let i = 0; i < this.count - len; i++) {
@@ -437,8 +449,7 @@ class ConfettoEjector {
 			const vx = Math.cos(ranAngle) * speed;
 			const vy = Math.sin(ranAngle) * speed;
 			const shape = new Polygon({
-				width: 9,
-				height: 6,
+				width: radius||12,
 				count: count,
 				position: new Vector(x, y),
 				vector: new Vector(vx, vy)
@@ -502,11 +513,20 @@ class Shape {
 	position = new Vector(0, 0);
 	vector = new Vector(0, 0);
 	alive = true;
-	id = new Date();
+	id = new Date().toString();
 	constructor() {
 
 	}
 	update() {}
+	reset({
+		position,
+		vector
+	}) {
+		this.alive = true;
+		this.material.opacity = 1;
+		this.position.setXY(position.x, position.y);
+		this.vector.setXY(vector.x, vector.y);
+	}
 }
 
 /*自定义角的数量*/
@@ -533,11 +553,12 @@ class Polygon extends Shape {
 		//this.turn=Math.random()>.5?1:-1;
 	}
 	createPoints(count) {
-		const PI = Math.PI * 2;
+		const PI = Math.PI <<1;
+		const half_w=this.width>>1;
 		for (let i = 0; i < count; i++) {
 			this.points.push(new Point({
-				x: Math.cos(i * PI / count) * this.width / 2,
-				y: Math.sin(i * PI / count) * this.width / 2,
+				x: Math.cos(i * PI / count) * half_w,
+				y: Math.sin(i * PI / count) * half_w,
 				z: this.z,
 			}));
 		}
@@ -558,8 +579,8 @@ class Polygon extends Shape {
 	}
 	update(paint) {
 		this.move();
-		this.material.update(paint, this.position,this);
-		const speed = 20//*this.turn;
+		this.material.update(paint, this.position, this);
+		const speed = 20 //*this.turn;
 		Matrix3All.rotateX(this, Math.random() * speed - this.vector.y);
 		Matrix3All.rotateY(this, Math.random() * speed - this.vector.x)
 		Matrix3All.rotateZ(this, Math.random() * speed - this.vector.y)

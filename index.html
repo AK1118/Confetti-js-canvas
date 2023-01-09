@@ -22,12 +22,14 @@
 	</body>
 	<script type="module">
 		import {ConfettoEjector,CanvasRender} from './js/confetti-js-canvas.js'
+		const g=document.getElementById("canvas").getContext("2d");
 		const canvasRender = new CanvasRender();
 		canvasRender.init({
 			el: "#canvas",
 			displayFps:true,
+			//paint:g,
 			onFinished:()=>{
-				canvasRender.dispose();
+				//canvasRender.dispose();
 			}
 		}).run();
 		window.onmousedown = function(e) {
@@ -39,6 +41,7 @@
 				x:e.clientX-window.innerWidth/2,
 				y:e.clientY-window.innerHeight/2,
 				clampforce:[20, 100],
+				radius:10,
 			});
 			pao.fire(boom);
 		}

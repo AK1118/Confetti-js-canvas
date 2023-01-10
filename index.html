@@ -45,12 +45,12 @@
 		window.onmousedown = function(e) {
 			const pao = new ConfettoEjector(canvasRender, {
 				limitAngle: [225, 315],
-				count: 100,
+				count: 2000,
 			});
 			const boom = pao.create({
 				x: e.clientX - window.innerWidth / 2,
 				y: e.clientY - window.innerHeight / 2,
-				clampforce: [20, 90],
+				clampforce: [20, 60],
 				radius: 10,
 			});
 			pao.fire(boom);

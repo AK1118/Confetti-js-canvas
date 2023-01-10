@@ -1,5 +1,5 @@
 /**
- * @version 1.0.1
+ * @version 1.0.2
  * @description uniapp不支持ES13特性私有方法&字段的编译，用 _标识代替声明私有变量/方法
  */
 
@@ -32,7 +32,9 @@ class CanvasRender {
 	/*渲染对象是否被销毁*/
 	_hasBeenDispose = false;
 	/*纸屑下落速度*/
-	gravity=.26;
+	gravity = .26;
+	/*上一次填充颜色*/
+	static preFillStyle;
 	/*Fps工具*/
 	_fpsUtil = {
 		sampleSize: 60,
@@ -84,8 +86,9 @@ class CanvasRender {
 	}) {
 		this.displayFps = displayFps || false;
 		this.onFinished = onFinished || function() {};
-		this.gravity=gravity||.26;
-		if (el == undefined&&!custom) {
+		this.gravity = gravity || .26;
+
+		if (el == undefined && !custom) {
 			throw Error("Canvas Id or custom brush not obtained");
 		}
 		try {
@@ -110,11 +113,11 @@ class CanvasRender {
 		height,
 		canvas,
 		paint,
-	}){
-		this._paint=paint;
-		this._canvas=canvas;
-		ScreenUtil.width=width;
-		ScreenUtil.height=height;
+	}) {
+		this._paint = paint;
+		this._canvas = canvas;
+		ScreenUtil.width = width;
+		ScreenUtil.height = height;
 	}
 	_setPaint(el, vm, width, height) {
 		if (this._isUni) {
@@ -136,12 +139,12 @@ class CanvasRender {
 		if (this._hasBeenDispose) {
 			return console.error("This CanvasRender has been destroyed!");
 		}
-		const animationEngine = requestAnimationFrame || function(fn) {
-			return setTimeout(fn, 1000 / 60)
-		};
-		animationEngine(() => {
+		const animationEngine = requestAnimationFrame || function(callback) {
+			setTimeout(callback, 1000 / 60);
+		}
+		animationEngine((time) => {
 			if (this._shapeList.length != 0)
-				this._update(animationEngine);
+				this._update(animationEngine, time);
 		});
 	}
 	dispose() {
@@ -152,7 +155,8 @@ class CanvasRender {
 	/**
 	 * 刷新Canvas,每帧检测回收对象
 	 */
-	_update(animationEngine) {
+	_update(animationEngine, time) {
+		if (this._animationState == AnimationState.stop) return;
 		if (this._isUni) {
 			this._paint.draw();
 		} else {
@@ -160,15 +164,15 @@ class CanvasRender {
 		}
 		/*检测对象数量及时停止*/
 		if (this._shapeList.length == 0) return this._animationFinished();
-		
-		{	
-				  /*canvas宽度一半*/
-			const _half_w=ScreenUtil.width >>1,
-				  /*canvas高度一半*/
-				  _half_h=ScreenUtil.height >>1;
+
+		{
+			/*canvas宽度一半*/
+			const _half_w = ScreenUtil.width >> 1,
+				/*canvas高度一半*/
+				_half_h = ScreenUtil.height >> 1;
 			/*更新动画*/
 			this._shapeList.forEach(
-				(shape,ndx) => {
+				(shape, ndx) => {
 					/*位置超出视口标记为可回收对象*/
 					shape.alive = (shape.position.x < _half_w && shape.position.x > ~_half_w) && shape
 						.position.y < _half_h;
@@ -191,8 +195,8 @@ class CanvasRender {
 		/*判断动画是否还继续*/
 		if (this._animationState == AnimationState.stop) return;
 		/*下一次更新调用*/
-		this.animationController = animationEngine(() => {
-			this._update(animationEngine);
+		this.animationController = animationEngine((time) => {
+			this._update(animationEngine, time);
 		});
 	}
 	_animationFinished() {
@@ -241,6 +245,9 @@ class CanvasRender {
 			this.run();
 		}
 		this._shapeList.push(...shapes);
+		this._shapeList.sort((a, b) => {
+			return a.material._color_key - b.material._color_key;
+		});
 	}
 }
 
@@ -326,13 +333,19 @@ class Plane extends Material {
 		y: 0,
 		z: 1000000
 	});
-	color = Styles.RandomColor;
+	_color;
+	_color_key
 	constructor(points) {
 		super();
 		this.points = points;
+		
+		const colorAndKey = Styles.RandomColor;
+		this._color = colorAndKey.color;
+		this._color_key = colorAndKey.key;
+
 	}
 	update(paint, position, shape) {
-		if (this.opacity <= 0.05) {
+		if (this.opacity <= .05) {
 			return shape.alive = false;
 		}
 		this.opacity -= .004;
@@ -340,8 +353,14 @@ class Plane extends Material {
 	}
 	draw(paint, position) {
 		paint.beginPath();
-		this.color[3] = this.opacity;
-		paint.fillStyle = Styles.rgba(this.color);
+		this._color[3] = this.opacity;
+
+		/*判断上次颜色是否和这次一样*/
+		if (CanvasRender.preFillStyle != this._color) {
+			paint.fillStyle = Styles.rgba(this._color);
+			CanvasRender.preFillStyle = this._color;
+		}
+
 		this.points.forEach(point => {
 			const dp = Matrix3.transformTo2D(point, this.A, position);
 			paint.lineTo(dp.x, dp.y);
@@ -360,8 +379,8 @@ class Matrix3 {
 		const x = ((point.x - A.x) * A.z) * pz;
 		const y = ((point.y - A.y) * A.z) * pz;
 		return {
-			x: x + (ScreenUtil.width >>1) + position.x,
-			y: y + (ScreenUtil.height >>1) + position.y,
+			x: x + (ScreenUtil.width >> 1) + position.x,
+			y: y + (ScreenUtil.height >> 1) + position.y,
 		};
 	}
 	static rotateX(point, angle) {
@@ -469,17 +488,17 @@ class ConfettoEjector {
 		}
 		shapesCache.push(...recover);
 		for (let i = 0; i < this.count - len; i++) {
-			const count = this.shapeTypes[~~(Math.random() * this.shapeTypes.length)];
+			const count = this.shapeTypes[(Math.random() * this.shapeTypes.length) >> 0];
 			const ranAngle = this.getRandomClamp(this.limitAngle) * this.PI;
 			const speed = this.getRandomClamp(spraySpeed);
 			const vx = Math.cos(ranAngle) * speed;
 			const vy = Math.sin(ranAngle) * speed;
 			const shape = new Polygon({
-				width: radius||12,
+				width: radius || 12,
 				count: count,
 				position: new Vector(x, y),
 				vector: new Vector(vx, vy),
-				gravity:this.canvasRender.gravity,
+				gravity: this.canvasRender.gravity,
 			});
 			shapesCache.push(shape)
 		}
@@ -577,13 +596,12 @@ class Polygon extends Shape {
 		this.bposition = this.position.copy();
 		this.vector = vector || new Vector(0, 0);
 		this.material = material || new Plane(this.points);
-		this.gravity=gravity||.26;
+		this.gravity = gravity || .26;
 		this.z = 0;
-		//this.turn=Math.random()>.5?1:-1;
 	}
 	createPoints(count) {
-		const PI = Math.PI <<1;
-		const half_w=this.width>>1;
+		const PI = Math.PI << 1;
+		const half_w = this.width >> 1;
 		for (let i = 0; i < count; i++) {
 			this.points.push(new Point({
 				x: Math.cos(i * PI / count) * half_w,
@@ -609,10 +627,11 @@ class Polygon extends Shape {
 	update(paint) {
 		this.move();
 		this.material.update(paint, this.position, this);
-		const speed = 20 //*this.turn;
-		Matrix3All.rotateX(this, Math.random() * speed - this.vector.y);
-		Matrix3All.rotateY(this, Math.random() * speed - this.vector.x)
-		Matrix3All.rotateZ(this, Math.random() * speed - this.vector.y)
+		const speed = 20;
+		const ran = ()=>Math.random() * speed;
+		Matrix3All.rotateX(this, ran() - this.vector.y);
+		Matrix3All.rotateY(this, ran() - this.vector.x);
+		Matrix3All.rotateZ(this, ran() - this.vector.y);
 	}
 }
 class Styles {
@@ -625,9 +644,12 @@ class Styles {
 			[253, 186, 96],
 			[251, 253, 113],
 		]
-		const ran = ~~(Math.random() * colors.length);
+		const ran = (Math.random() * colors.length) >> 0;
 		const color = colors[ran];
-		return color;
+		return {
+			key: ran,
+			color: color,
+		};
 	}
 	static rgba([r, g, b, a]) {
 		return `rgba(${r},${g},${b},${a})`;

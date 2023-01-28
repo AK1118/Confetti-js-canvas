@@ -5,6 +5,8 @@
 
 <img src="https://new.ivypha.com/static/uploads/2022/12/30//31a9fff8769d9180374e7263f9142630.gif"/>
 
+ ![Github stars](https://img.shields.io/github/stars/AK1118/Confetti-js-canvas.svg) 如果有帮到您,给个小星星,我会把它做得更好。 <a>https://github.com/AK1118/Confetti-js-canvas/</a>
+
 ### 引入对象(文末有最简单实现代码)
 首先需要从.js文件中引入喷发对象和渲染对象
 

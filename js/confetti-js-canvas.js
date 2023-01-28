@@ -1,6 +1,5 @@
 /**
- * @version 1.0.2
- * @description uniapp不支持ES13特性私有方法&字段的编译，用 _标识代替声明私有变量/方法
+ * @version 1.0.3
  */
 
 class ScreenUtil {
@@ -50,10 +49,10 @@ class CanvasRender {
 			}
 			// calculate necessary values to obtain current tick FPS
 			let now = performance.now();
-			let delta = (now - this._lastTick_) / 1000;
+			let delta = (now - this._lastTick_) * 0.001;
 			let fps = 1 / delta;
 			// add to fps samples, current tick fps value 
-			this._sample_[this._index_] = Math.round(fps);
+			this._sample_[this._index_] = fps>>0;
 
 			// iterate samples to obtain the average
 			let average = 0;
@@ -91,12 +90,10 @@ class CanvasRender {
 		if (el == undefined && !custom) {
 			throw Error("Canvas Id or custom brush not obtained");
 		}
-		try {
-			this._isUni = uni != undefined;
-		} catch (e) {}
-		if (document) {
+		this._isUni=typeof(uni)!='undefined';
+		if (typeof(document)!='undefined') {
 			this._canvas = document.querySelector(el);
-		} else if (wx) {
+		} else if (typeof(wx)!='undefined') {
 			this._canvas = wx.createSelectorQuery().select(el);
 		}
 		/*自定义优先级最高*/
@@ -188,9 +185,8 @@ class CanvasRender {
 		/*计算显示FPS*/
 		if (this.displayFps) {
 			const fps = this._fpsUtil.tick();
-			if (document) {
-				document.querySelector("#confps").innerHTML = `Shape:${this._shapeList.length}/FPS:${fps}`;
-			}
+			this._paint.fillStyle="black";
+			this._paint.fillText("FPS:"+fps,10,20);
 		}
 		/*判断动画是否还继续*/
 		if (this._animationState == AnimationState.stop) return;
@@ -353,14 +349,13 @@ class Plane extends Material {
 	}
 	draw(paint, position) {
 		paint.beginPath();
+		//if(!this._color)return;
 		this._color[3] = this.opacity;
-
 		/*判断上次颜色是否和这次一样*/
 		if (CanvasRender.preFillStyle != this._color) {
 			paint.fillStyle = Styles.rgba(this._color);
 			CanvasRender.preFillStyle = this._color;
 		}
-
 		this.points.forEach(point => {
 			const dp = Matrix3.transformTo2D(point, this.A, position);
 			paint.lineTo(dp.x, dp.y);
@@ -384,7 +379,7 @@ class Matrix3 {
 		};
 	}
 	static rotateX(point, angle) {
-		const mp = point.toArray();
+		//const mp = point.toArray();
 		const cos_ = Math.cos(angle),
 			sin_ = Math.sin(angle);
 		const y = point.y * cos_ - point.z * sin_;
@@ -398,7 +393,7 @@ class Matrix3 {
 		return result;
 	}
 	static rotateZ(point, angle) {
-		const mp = point.toArray();
+		//const mp = point.toArray();
 		const cos_ = Math.cos(angle),
 			sin_ = Math.sin(angle);
 
@@ -438,7 +433,8 @@ class ConfettoEjector {
 	constructor(canvasRender, {
 		limitAngle,
 		count,
-		shapeTypes
+		shapeTypes,
+		colors,//颜色自定义
 	}) {
 		if (canvasRender == undefined) {
 			return console.error("CanvasRender不能为空")
@@ -447,6 +443,9 @@ class ConfettoEjector {
 		this.limitAngle = limitAngle || [0, 360];
 		this.count = count || 30;
 		this.shapeTypes = shapeTypes || [3, 4, 5, 6, 15];
+		if(colors){
+			Styles.setColors(colors)
+		}
 	}
 	/*获取指定区间值*/
 	getRandomClamp([min, max]) {
@@ -559,10 +558,8 @@ class Shape {
 	position = new Vector(0, 0);
 	vector = new Vector(0, 0);
 	alive = true;
-	id = new Date().toString();
-	constructor() {
-
-	}
+	//id = new Date().toString();
+	constructor() {}
 	update() {}
 	reset({
 		position,
@@ -635,20 +632,36 @@ class Polygon extends Shape {
 	}
 }
 class Styles {
-	static get RandomColor() {
-		const colors = [
+	static _colors=[
 			[253, 101, 255],
 			[163, 253, 130],
 			[183, 128, 253],
 			[89, 214, 255],
 			[253, 186, 96],
 			[251, 253, 113],
-		]
+		];
+	/**
+	 * @param {Array<String|Array>} colors
+	 * @description 自定义颜色转换
+	 */
+	static setColors(colors){
+		if(colors.length==0)return;
+		Styles._colors=[];
+		colors.forEach(item=>{
+			if(item instanceof Array){
+				 Styles._colors.push(item)
+			}else if(typeof(item)==='string'){
+				 Styles._colors.push(ColorUtil.transformHexToRGB(item))
+			}
+		});
+	}
+	static get RandomColor() {
+		const colors = Styles._colors;
 		const ran = (Math.random() * colors.length) >> 0;
 		const color = colors[ran];
 		return {
 			key: ran,
-			color: color,
+			color: [...color],
 		};
 	}
 	static rgba([r, g, b, a]) {
@@ -656,6 +669,28 @@ class Styles {
 	}
 }
 
+class ColorUtil{
+	/**
+	 * @param {Sting} hex
+	 * @description 将十六进制转换成rgb数组形式
+	 */
+	static transformHexToRGB(hex){
+		const len=hex.length;
+		let newHex=hex;
+		/*不足六位补齐*/
+		if(len<6){
+			for(let i=0;i<6-len;i++){
+				newHex+="0";
+			}
+		}
+		const rgbArr=[];
+		for(let i=0;i<=2;i++){
+			const hex_2=newHex.substr(i*2,2);
+			rgbArr[i]=parseInt(hex_2,16);
+		}
+		return rgbArr;
+	}
+}
 
 export {
 	ConfettoEjector,

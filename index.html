@@ -38,14 +38,15 @@
 				paint: g,
 			},
 			onFinished: () => {
-				canvasRender.dispose();
+				//canvasRender.dispose();
 				console.log("销毁渲染器")
 			},
 		}).run();
 		window.onmousedown = function(e) {
 			const pao = new ConfettoEjector(canvasRender, {
 				limitAngle: [225, 315],
-				count: 2000,
+				count: 60,
+				colors:["00be46",[0,0,255],"ff0000"]
 			});
 			const boom = pao.create({
 				x: e.clientX - window.innerWidth / 2,

@@ -27,7 +27,7 @@
 		vm,	//选填,uniapp的vm this对象，h5不需要加
 		width,	//el不为空时必填,canvas的宽度
 		height,	//el不为空时必填,canvas的高度
-		displayFps,	//选填,是否显示fps，仅仅H5支持。如果设置为ture,那您最好有一个id为confps的标签供他innerHtml。
+		displayFps,	//选填,是否显示fps
 		custom,	//选填,自定义canvas,paint,canvas大小，参考值在下方
 		grabity, //[Number] 选填,纸屑下落速度
 		onFinished,	//选填,动画执行完毕回调()=>{}
@@ -58,6 +58,7 @@
 		limitAngle,//[Array]  喷发角度限制[min,max],值域在0-360之间，您可以尝试一下。对了，***顺时针***。
 		count,//[Number] 每次喷发出来的对象数量，建议在100以内。
 		shapeTypes,//[Array] 喷发出来的形状，默认可以不设置。[3, 4, 5, 6, 15],以上我提交了三角形，四边形，五边形等
+		colors,[Array|String] 自定义喷发纸屑颜色，支持rgb数组和十六进制字符串，例如colors:["00be46",[0,0,255],"ff0000"]
 	}
   
 ### 创建一个boom,蓄势待发。
